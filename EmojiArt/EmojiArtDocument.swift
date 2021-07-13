@@ -10,16 +10,60 @@ import SwiftUI
 class EmojiArtDocument: ObservableObject {
     @Published private(set) var emojiArt: EmojiArtModel {
         didSet {
+            scheduleAutoSave()
             if emojiArt.background != oldValue.background {
                 fetchBackgroundImage()
             }
         }
     }
     
+    private var autoSaveTimer: Timer?
+    
+    private func scheduleAutoSave() {
+        autoSaveTimer?.invalidate()
+        autoSaveTimer = Timer.scheduledTimer(withTimeInterval: AutoSave.coalescingInterval, repeats: false) { _ in
+            self.autoSave()
+        }
+    }
+    
+    private struct AutoSave {
+        static let fileName = "Autosaved.emojiArt"
+        static var url: URL? {
+            let documentDirectory = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first
+            return documentDirectory?.appendingPathComponent(fileName)
+        }
+        static let coalescingInterval = 5.0
+    }
+    
+    private func autoSave() {
+        if let url = AutoSave.url {
+            save(to: url)
+        }
+    }
+    
+    private func save(to url:URL) {
+        let selfId = "\(String(describing: self)).\(#function)"
+        do {
+            let data: Data = try emojiArt.json()
+            print("\(selfId) json = \(String(data: data, encoding: .utf8) ?? "nil")")
+            try data.write(to: url)
+            print("\(selfId) completed")
+        } catch let encodingError where encodingError is EncodingError {
+            print("\(selfId) error = \(encodingError.localizedDescription) when encoding the EmojiArtModel as JSON")
+        } catch {
+            print("\(selfId) error = \(error)")
+        }
+    }
+    
     init() {
-        emojiArt = EmojiArtModel()
-        emojiArt.addEmoji("😀", at: (-200, -100), size: 80)
-        emojiArt.addEmoji("😷", at: (50, 100), size: 40)
+        if let url = AutoSave.url, let autosavedEmojiArt = try? EmojiArtModel(url: url) {
+            emojiArt = autosavedEmojiArt
+            fetchBackgroundImage()
+        } else {
+            emojiArt = EmojiArtModel()
+    //        emojiArt.addEmoji("😀", at: (-200, -100), size: 80)
+    //        emojiArt.addEmoji("😷", at: (50, 100), size: 40)
+        }
     }
     
     @Published var backgroundImage: UIImage?
