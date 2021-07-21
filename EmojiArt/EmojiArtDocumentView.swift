@@ -15,7 +15,7 @@ struct EmojiArtDocumentView: View {
     var body: some View {
         VStack(spacing: 0) {
             documentBody
-            palette
+            PaletteChoser(emojiFontSize: defaultEmojiFontSize)
         }
     }
     
@@ -44,8 +44,30 @@ struct EmojiArtDocumentView: View {
             .onDrop(of: [.plainText, .url, .image], isTargeted: nil) { providers, location in
                 drop(providers: providers, at: location, in: geometry)
             }
+            .gesture(zoomGesture().simultaneously(with: panGesture()))
+            .alert(item: $alertToShow) { alertToShow in
+                alertToShow.alert()
+            }
+            .onChange(of: document.backgroundFetchStatus) { status in
+                switch status {
+                case .failed(let url):
+                    showFetchFailedAlert(url)
+                default:
+                    break
+                }
+            }
         }
-        .gesture(zoomGesture().simultaneously(with: panGesture()))
+    }
+    
+    @State private var alertToShow: IdentifiableAlert?
+    
+    private func showFetchFailedAlert(_ url: URL) {
+        alertToShow = IdentifiableAlert(id: "fetch failed: " + url.absoluteString, alert: {
+            Alert(title: Text("Background Image Fetch"),
+                  message: Text("Couldn't load image from \(url)."),
+                  dismissButton: .default(Text("OK"))
+            )
+        })
     }
     
     private func drop(providers: [NSItemProvider], at location: CGPoint, in geometry: GeometryProxy) -> Bool {
@@ -147,28 +169,6 @@ struct EmojiArtDocumentView: View {
             let vZoom = size.height / image.size.height
             statePanOffset = .zero
             stateZoomScale = min (hZoom, vZoom)
-        }
-    }
-    
-    var palette: some View {
-        ScrollingEmojisView(emojis: testEmojis)
-            .font(.system(size: defaultEmojiFontSize))
-    }
-    
-    let testEmojis = "😀😷🦠💉👻👀🐶🌲🌎🌞🔥🍎⚽️🚗🚓🚲🛩🚁🚀🛸🏠⌚️🎁🗝🔐❤️⛔️❌❓✅⚠️🎶➕➖🏳️"
-}
-
-struct ScrollingEmojisView: View {
-    let emojis: String
-    
-    var body: some View {
-        ScrollView(.horizontal) {
-            HStack {
-                ForEach(emojis.map { String($0) }, id: \.self) { emoji in
-                    Text(emoji)
-                        .onDrag { NSItemProvider(object: emoji as NSString) }
-                }
-            }
         }
     }
 }
